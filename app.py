@@ -1,17 +1,27 @@
-import soccerdata as sd
+import time
 import requests
-import settings
+import schedule
+import soccerdata as sd
 from yarl import URL
 
-import schedule
-import time
+from loguru import logger
+
+import settings
 
 fbref = sd.FBref(leagues=['ENG-Premier League'], seasons='22-23')
 
-stats = fbref.read_player_season_stats(stat_type='standard')
-url = URL(settings.BASE_API_URL)
+url = URL(settings.BASE_API_URL) / 'api' / 'player'
 
-def request_post():
+
+def update_players_data():
+    logger.debug('chto ugodno')
+    stats = fbref.read_player_season_stats(stat_type='standard')
     r = requests.post(str(url), json=stats.to_json())
 
-schedule.every().hour.do(request_post())
+    
+
+schedule.every().minute.do(update_players_data)
+
+while True:
+    schedule.run_pending()
+    time.sleep(1)
