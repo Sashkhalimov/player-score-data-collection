@@ -4,6 +4,7 @@ import schedule
 import soccerdata as sd
 from yarl import URL
 from pprint import pprint
+import math
 
 from loguru import logger
 
@@ -36,25 +37,38 @@ def save_data():
             edit_player(player)
             all_players.append(player)
 
-    save_stat_type('possession', all_players)
-    save_stat_type('playing_time', all_players)
-    save_stat_type('passing', all_players)
-    save_stat_type('passing_types', all_players)
-    save_stat_type('goal_shot_creation', all_players)
 
-    if player['pos'] == 'GK':
-        save_stat_type('keeper', all_players)
-        save_stat_type('keeper_adv', all_players)
-    elif player['pos'] == 'DF':
-        save_stat_type('misc', all_players)
-        save_stat_type('defense', all_players)
-    elif player['pos'] == 'MF':
-        save_stat_type('misc', all_players)
-        save_stat_type('shooting', all_players)
-        save_stat_type('defense', all_players)
-    elif player['pos'] == 'FW':
-        save_stat_type('shooting', all_players)
-    pprint(all_players)
+    for player in all_players:
+
+        save_stat_type('possession', all_players)
+        save_stat_type('playing_time', all_players)
+        save_stat_type('passing', all_players)
+        save_stat_type('passing_types', all_players)
+        
+        if player['pos'] == 'GK':
+            save_stat_type('keeper', all_players)
+            save_stat_type('keeper_adv', all_players)
+
+        elif player['pos'] == 'DF':
+            save_stat_type('misc', all_players)
+            save_stat_type('defense', all_players)
+
+        elif player['pos'] == 'MF':
+            save_stat_type('misc', all_players)
+            save_stat_type('shooting', all_players)
+            save_stat_type('defense', all_players)
+            save_stat_type('goal_shot_creation', all_players)
+
+        elif player['pos'] == 'FW':
+            save_stat_type('shooting', all_players)
+            save_stat_type('goal_shot_creation', all_players)
+        
+        pprint(all_players)
+        if player['pos'] == 'GK':
+            requests.post(str(url / 'GK'), json=player)
+        pprint(all_players)
+        
+
 
 
 
@@ -71,6 +85,10 @@ def save_stat_type(stat_type, all_players):
                 player['on' + j] = k
             else:
                 player[j] = k
+            if isinstance(k, float) and math.isnan(k):
+                player[j] = 0.0 
+            
+            
         del player['pos']
         del player['age']
         del player['born']
@@ -79,6 +97,7 @@ def save_stat_type(stat_type, all_players):
         for human in all_players:
             if human['name'] == name:
                 human.update(player)
+
 
 def edit_player(player):
     del player['born']
@@ -92,12 +111,12 @@ def edit_player(player):
         else:
             player['pos'] = player.pop('pos')[:2]
 
-
 save_data()
-
-schedule.every().minute.do(update_players_data)
+'''
+schedule.every().minute.do(save_data)
 
 
 while True:
     schedule.run_pending()
     time.sleep(1)
+'''
