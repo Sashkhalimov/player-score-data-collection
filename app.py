@@ -1,124 +1,96 @@
-import time
-import requests
-import schedule
 import soccerdata as sd
 from yarl import URL
 from pprint import pprint
-import math
-
-from loguru import logger
 
 import settings
+from utils import format_stat_name, format_stat_value, get_playing_time, edit_position, update_result
 
 fbref = sd.FBref(leagues=['ENG-Premier League'], seasons='22-23')
 
 url = URL(settings.BASE_API_URL) / 'api' / 'player'
 
-def save_data():
-    all_players = {}
+STAT_TYPES = {
+    'all':[
+    'standard', 
+    'passing', 
+    'passing_types', 
+    'playing_time',
+    'possession',
+    ],
+    'GK':[
+    'keeper', 
+    'keeper_adv',
+    ],
+    'DF':[
+    'misc',
+    'defense',
+    ],
+    'MF':[
+    'misc',
+    'defense',
+    'shooting',
+    'goal_shot_creation',
+    ],
+    'FW':[
+    'goal_shot_creation', 
+    'shooting', 
+    ]
+}
 
-    first_save(all_players)
+def get_players():
+    result = {}
 
-    for player in all_players:
+    for stat_type in STAT_TYPES['all']:
+        stat_types_by_poisition(stat_type, result)
 
+    for position in STAT_TYPES:
+        for stat_type in STAT_TYPES[position]:
+            stat_types_by_poisition(stat_type, result, position)
 
-
-        save_stat_type('possession', all_players)
-        save_stat_type('playing_time', all_players)
-        save_stat_type('passing', all_players)
-        save_stat_type('passing_types', all_players)
-        
-        if all_players[player]['pos'] == 'GK':
-            save_stat_type('keeper', all_players)
-            save_stat_type('keeper_adv', all_players)
-
-        elif all_players[player]['pos'] == 'DF':
-            save_stat_type('misc', all_players)
-            save_stat_type('defense', all_players)
-
-        elif all_players[player]['pos'] == 'MF':
-            save_stat_type('misc', all_players)
-            save_stat_type('shooting', all_players)
-            save_stat_type('defense', all_players)
-            save_stat_type('goal_shot_creation', all_players)
-
-        elif all_players[player]['pos'] == 'FW':
-            save_stat_type('shooting', all_players)
-            save_stat_type('goal_shot_creation', all_players)
-
-        
-        # if player['pos'] == 'GK':
-        #     requests.post(str(url / 'GK'), json=player)
-
-    pprint(all_players)
-    # for player in all_players:
-    #     requests.post(str(url / player['pos']), json=player)
-        
-
-def first_save(all_players):
-    stats = fbref.read_player_season_stats(stat_type='standard')
-    players = stats.to_dict(orient='index')
-
-    for key, value in players.items():
-        player = {}
-
-        player['name'] = key[3]
-        player['team'] = key[2]
-        if float(value[('Playing Time', '90s')]) > 0.5:
-            for j, k in value.items():
-                player[('_'.join(' '.join(j).split()).lower().replace('%', '_percent').replace('+/-', '_plus_minus_').replace('/', '_in_').replace('+', '_plus_').replace('-', '_minus_'). replace('(', '').replace(')', '').replace(':', '_').replace('#', '_'))] = k
-            edit_player(player)
-            all_players[player['name']] = player
+    return result
 
 
-def save_stat_type(stat_type, all_players):
-    stats = fbref.read_player_season_stats(stat_type=stat_type)
-    players = stats.to_dict(orient='index')
-
-    for key, value in players.items():
-        name = key[3]
-        player = {}
-        for j, k in value.items():
-            j = '_'.join(' '.join(j).split()).lower().replace('%', '_percent').replace('+/-', '_plus_minus_').replace('/', '_in_').replace('+', '_plus_').replace('-', '_minus_').replace('(', '').replace(')', '').replace(':', '_').replace('#', '_')
-            if j[0].isdigit():
-                player['on' + j] = k
-            else:
-                player[j] = k
-            if isinstance(k, float) and math.isnan(k):
-                player[j] = 0.0 
-            
-        del player['pos']
-        del player['age']
-        del player['born']
-        del player['nation']
-
-        criterion = 'on90s'
-        if stat_type == 'playing_time' or stat_type == 'keeper':
-            criterion = 'playing_time_90s'
-
-        if float(player[criterion]) > 0.5:
-            all_players[name].update(player)
-        
-
-
-def edit_player(player):
-    del player['born']
-    player['age'] = player.pop('age')[:2]
-
-    if len(player['pos']) == 2:
-        player['pos'] = player.pop('pos')[:2]
-    else:
-        if 'FW' in player['pos']:
-            player['pos'] = 'FW'
+def stat_types_by_poisition(stat_type, result, position=None):
+    stats = (fbref.read_player_season_stats(stat_type=stat_type)).to_dict(orient='index')
+    for key, value in stats.items():
+        if position is not None:
+            if edit_position(value[('Pos', '')]) == position:
+                update_result(key, value, result)
         else:
-            player['pos'] = player.pop('pos')[:2]
-
-save_data()
-'''
-schedule.every().minute.do(save_data)
+            update_result(key, value, result)
 
 
-while True:
-    schedule.run_pending()
-    time.sleep(1)
-'''
+def format_players_data(players):
+    result = []
+
+    for player, player_stats in players.items():
+        player = {'name':player[3], 'team':player[2]}
+
+        playing_time = get_playing_time(player_stats)
+
+        if playing_time <= 0.5:
+            continue
+
+        for stat_name, stat_value in player_stats.items():
+            stat_name = format_stat_name(stat_name)
+            stat_value = format_stat_value(stat_value)
+            player[stat_name] = stat_value
+        
+        try:
+            player['age'] = player['age'][:2]
+        except Exception as e:
+            print('Can be')
+
+        player['pos'] = edit_position(player['pos'])
+
+        result.append(player)
+
+    return result
+    
+
+if __name__ == '__main__':
+    players = get_players()
+    players = format_players_data(players)
+    pprint(players)
+
+
