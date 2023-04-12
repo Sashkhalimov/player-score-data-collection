@@ -1,6 +1,7 @@
 import soccerdata as sd
 from yarl import URL
 from pprint import pprint
+import requests
 
 import settings
 from utils import format_stat_name, format_stat_value, get_playing_time, edit_position, update_result
@@ -82,6 +83,7 @@ def format_players_data(players):
             print('Can be')
 
         player['pos'] = edit_position(player['pos'])
+        del player['born']
 
         result.append(player)
 
@@ -91,6 +93,7 @@ def format_players_data(players):
 if __name__ == '__main__':
     players = get_players()
     players = format_players_data(players)
-    pprint(players)
+    for player in players:
+        requests.post(str(url / player['pos']), json=player)
 
 
