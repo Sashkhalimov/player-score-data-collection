@@ -1,6 +1,5 @@
 import soccerdata as sd
 from yarl import URL
-from pprint import pprint
 import requests
 
 import settings
@@ -83,6 +82,8 @@ def format_players_data(players):
             print('Can be')
 
         player['pos'] = edit_position(player['pos'])
+        if 'int' in player.keys():
+            player['_int'] = player.pop('int')
         del player['born']
 
         result.append(player)
